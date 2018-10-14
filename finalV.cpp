@@ -34,7 +34,7 @@ int maxSearch(int a, int b) {
 }
 int main(int argc, char **argv) {
 	int rank, size;
-	int *matrix;
+	int *matrix = nullptr;
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
 
 	int partSize = rows / size;
 	int *vec = new int[cols * partSize];
-	MPI_Scatter(&matrix, cols * partSize, MPI_INT, vec, cols*partSize, MPI_INT, 0, MPI_COMM_WORLD);
+	MPI_Scatter(matrix, cols * partSize, MPI_INT, vec, cols*partSize, MPI_INT, 0, MPI_COMM_WORLD);
 
 	int *localMax = new int[partSize];
 
