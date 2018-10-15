@@ -34,17 +34,18 @@ int maxSearch(int a, int b) {
 }
 int main(int argc, char **argv) {
 	int rank, size;
-	int *matrix = nullptr;
+
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
 	const int rows = stoi(string(argv[1]));
 	const int cols = stoi(string(argv[2]));
-
+	
+	int *matrix = nullptr;
 	if (rank == 0) {
 	
-		matrix = createMatrix(rows, cols);
+		matrix = new int[rows * cols];
 		fullMatrix(matrix, rows, cols);
 		printMatrix(matrix, rows, cols);
 	}
