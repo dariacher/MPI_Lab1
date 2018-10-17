@@ -35,31 +35,30 @@ int maxSearch(int a, int b) {
 }
 int main(int argc, char **argv) {
 	int rank, size;
+//	int rows, cols;
 	int *matrix = nullptr;
-
-	int *sendCounts = nullptr, *offset = nullptr, *recBuf = nullptr;
+	int *sendCounts = nullptr, *offset = nullptr, *recBuf = nullptr, *localMax = nullptr, *totalMax;
 	int localBuf, tail;
-	double time;
+//	double time;
+
 
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
-
 	const int rows = stoi(string(argv[1]));
 	const int cols = stoi(string(argv[2]));
 
-
 	if (rank == 0) {
-
+		
 		matrix = new int[rows * cols];
 		fullMatrix(matrix, rows, cols);
 		printMatrix(matrix, rows, cols);
 	}
-	time = MPI_Wtime();
+//	time = MPI_Wtime();
 	sendCounts = new int[size];
 	offset = new int[size];
 	localBuf = rows*cols / size;
-
+	totalMax = new int[rows];
 	//элементы, оставшиеся после разделения между процессами
 	tail = (rows*cols) % size;
 
@@ -72,3 +71,25 @@ int main(int argc, char **argv) {
 	recBuf = new int[sendCounts[rank]];
 
 	MPI_Scatterv(matrix, sendCounts, offset, MPI_INT, recBuf, sendCounts[rank], MPI_INT, 0, MPI_COMM_WORLD);
+
+	localMax = new int[sendCounts[rank]];
+	for (int i = 0; i < sendCounts[rank]; i++) {
+		localMax[i] = INT_MIN;
+	}
+
+	for (int i = 0; i < sendCounts[rank]; i++) {
+		if (localMax[i] < recBuf[i])
+			localMax[i] = recBuf[i];
+	}
+
+	MPI_Reduce(localMax, totalMax, rows, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
+
+	if (rank == 0) {
+		for (int i = 0; i < rows; i++) {
+			cout << totalMax[i] << endl;
+		}
+	}
+
+	MPI_Finalize();
+	return 0;
+}
