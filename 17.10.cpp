@@ -49,7 +49,6 @@ int main(int argc, char **argv) {
 	const int cols = stoi(string(argv[2]));
 
 	if (rank == 0) {
-		
 		matrix = new int[rows * cols];
 		fullMatrix(matrix, rows, cols);
 		printMatrix(matrix, rows, cols);
