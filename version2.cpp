@@ -3,117 +3,141 @@
 #include <string>
 using namespace std;
 
-void printMatrix(int *data, int row, int col) {
-	for (int i = 0; i < row; i++) {
-		for (int j = 0; j < col; j++) {
-			cout << data[i * col + j] << " ";
+
+void printMatrix(int *data, int size) {
+	if (size < 15 ) {
+		for (int i = 0; i < size; i++) {
+			for (int j = 0; j < size; j++) {
+				cout << data[i * size + j] << " ";
+			}
+			cout << endl;
 		}
-		cout << endl;
 	}
 }
 
-int* createMatrix(int row, int col) {
+int* createMatrix(int size) {
 	int *matrix;
-	matrix = new int[row*col];
+	matrix = new int[size*size];
 	return matrix;
 }
 
-void fullMatrix(int *matrix, int row, int col) {
-	for (int i = 0; i < row; i++) {
-		for (int j = 0; j < col; j++) {
-			matrix[i*col + j] = rand() % 100;
+void fullMatrix(int *matrix, int size) {
+	for (int i = 0; i < size; i++) {
+		for (int j = 0; j < size; j++) {
+			matrix[i*size + j] = rand() % 100;
 		}
 	}
 }
-
+int maxSearch(int a, int b) {
+	if (a >= b)
+		return a;
+	else return b;
+}
 int main(int argc, char **argv) {
 	int rank, size;
-	int rows, cols;
-	int *matrix;
-	int* data;
+	MPI_Status Status;
 	MPI_Init(&argc, &argv);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 
+	int Size = stoi(string(argv[1]));	
+	int *matrix = nullptr;
+
 	if (rank == 0) {
-		cout << "Enter the number of rows: ";
-		cin >> rows;
-		cout << endl;
-		cout << "Enter the number of columns: ";
-		cin >> cols;
-		cout << endl;
-
-		matrix = createMatrix(rows, cols);
-		
-		data = createMatrix(rows, cols);
-		fullMatrix(matrix, rows, cols);
-		printMatrix(matrix, rows, cols);
-		for (int i = 0; i < rows; i++){
-			for (int j = 0; j < cols; j++) {
-				data[i*cols + rows] = matrix[i*cols + rows];
-			}
-		}
-		
-
+		matrix = new int[Size * Size];
+		fullMatrix(matrix, Size);
+		printMatrix(matrix, Size);
 	}
 
-	if (size > 1) {
-		int partSize = cols / size;
-		int tail = cols & size;
+	int partSize = Size / size;
+	int *vec = new int[Size * partSize];
 
-		int *col = new int[rows];
-		int *max = new int[rows];
-
-		for (int i = 0; i < cols - tail; i += partSize) {
-			int displace;
-			if (i == 0) {
-				displace = 0;
-			}
-			else {
-				displace = (i - 1) *rows;
-			}
-			int *send;
-			if (rank == 0){
-				send = data + displace;
-			}
-			else {
-				send = nullptr;
-			}
-			
-			max = rank == 0 ? matrix + rows*(i + partSize - 1) : nullptr;
-			MPI_Scatter(send, rows, MPI_INT, col, rows, MPI_INT, 0, MPI_COMM_WORLD);
-			MPI_Reduce(col, max, rows, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
-		}
-
-		if (tail > 0) {
-			if (rank == 0) {
-				for (int i = cols - tail, j = 1; i < cols && j <= tail; i++, j++) {
-					MPI_Send(matrix + i*rows, rows, MPI_INT, j, 0, MPI_COMM_WORLD);
-				}
-				for (int i = 0; i < rows; i++) {
-					col[i] = matrix[(cols - tail - 1) *rows + i];
-				}
-			}
-			else if (rank <= tail) {
-				MPI_Recv(col, rows, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-			}
-			else if (rank > tail) {
-				for (int i = 0; i < rows; i++) {
-					col[i] = INT_MIN;
-				}
-			}
-
-			MPI_Barrier(MPI_COMM_WORLD);
-			max = rank == 0 ? matrix + (cols - 1)* rows : nullptr;
-			MPI_Reduce(col, max, rows, MPI_INT, MPI_MAX, 0, MPI_COMM_WORLD);
-		}
+	if (size > Size) {
 
 		if (rank == 0) {
-			for (int i = 0; i < rows; i++){
-				cout << max[i] << endl;
+			int* tmp = new int[Size];
+			int *result = new int[Size];
+			for (int i = 0; i < Size; i++)
+				result[i] = INT_MIN;
+
+			for (int i = 1; i < size; i++){
+				MPI_Send(&Size, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+				MPI_Send(matrix, Size*Size, MPI_INT, i, 0, MPI_COMM_WORLD);
+			}
+
+			for (int i = 1; i < size; i++){
+				MPI_Recv(tmp, Size, MPI_INT, i, MPI_ANY_TAG, MPI_COMM_WORLD, &Status);
+				for (int j = 0; j < Size; j++){
+					if (tmp[j] > result[j])
+						result[j] = tmp[j];
+				}
+			}
+
+			cout << "Result = ";
+			for (int i = 0; i < Size; i++)
+				cout << result[i] << " ";
+			cout << endl;
+
+			delete matrix;
+			delete tmp;
+			delete result;
+		}
+
+		else {
+			MPI_Recv(&Size, 1, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &Status);
+			
+			matrix = createMatrix(Size);
+			int* tmp = new int[Size];
+			MPI_Recv(matrix, Size*Size, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &Status);
+			for (int i = 0; i < Size; i++){
+				tmp[i] = INT_MIN;
+				for (int j = (rank - 1); j < Size; j += (size - 1))
+				if (matrix[i * Size + j] > tmp[i])
+					tmp[i] = matrix[i * Size + j];
+			}
+			MPI_Send(tmp, Size, MPI_INT, 0, 0, MPI_COMM_WORLD);
+		}
+
+	}
+
+	if (size <= Size){
+		MPI_Scatter(matrix, Size * partSize, MPI_INT, vec, Size*partSize, MPI_INT, 0, MPI_COMM_WORLD);
+
+		int *localMax = new int[partSize];
+
+		for (int i = 0; i < partSize; i++) {
+			int max = INT_MIN;
+			for (int j = 0; j < Size; j++) {
+				if (vec[i * Size + j] > max) {
+					max = vec[i * Size + j];
+				}
+			}
+			localMax[i] = max;
+		}
+		int *totalMax = nullptr;
+		if (rank == 0) {
+			totalMax = new int[Size];
+		}
+		MPI_Gather(localMax, partSize, MPI_INT, totalMax, partSize, MPI_INT, 0, MPI_COMM_WORLD);
+
+		if (rank == 0) {
+			int tail = Size - size*partSize;
+			for (int i = tail + 1; i < Size; i++) {
+				int max = INT_MIN;
+				for (int j = 0; j < Size; j++) {
+					max = maxSearch(matrix[i*Size + j], max);
+				}
+				totalMax[i] = max;
+			}
+			cout << "Result: ";
+			for (int i = 0; i < Size; i++) {
+				cout << totalMax[i] << " ";
 			}
 		}
-		MPI_Finalize();
 	}
+	
+
+
+	MPI_Finalize();
 	return 0;
 }
